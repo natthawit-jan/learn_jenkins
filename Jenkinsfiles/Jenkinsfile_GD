@@ -54,7 +54,8 @@ pipeline {
                 set +x # Disable printing of commands
                 echo "${params.GDW_VERSION}"
                 echo "${params.JIRA_TOKEN}"
-                set -x
+                # Other commands here
+                set -x # Re-enable printing of commands, if needed
                 """
 
                 sh 'ls -l'
