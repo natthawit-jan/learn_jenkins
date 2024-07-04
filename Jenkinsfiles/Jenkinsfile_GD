@@ -29,12 +29,14 @@ pipeline {
                         env.RECIPIENT_EMAIL = env.BUILD_USER
                     }
                 }
+                sh "env | sort"
                 echo "Recipient Email: ${env.RECIPIENT_EMAIL}"
             }
         }
         stage('Checkout') {
             steps {
                 echo "Checking out the code from ${env.GIT_BRANCH} branch"
+                
                 // checkout([$class: 'GitSCM', 
                 //     branches: [[name: env.GIT_BRANCH]], 
                 //     userRemoteConfigs: [[url: env.GIT_REPO, credentialsId: 'mult-aztu-git']]
@@ -52,10 +54,9 @@ pipeline {
                 echo 'Running the rel_notes.py script...'
                 sh """
                 set +x # Disable printing of commands
-                echo "${params.GDW_VERSION}"
-                echo "${params.JIRA_TOKEN}"
-                # Other commands here
-                set -x # Re-enable printing of commands, if needed
+                echo ${params.GDW_VERSION}
+                echo ${params.JIRA_TOKEN}
+                set -x # Enable printing of commands
                 """
 
                 sh 'ls -l'
