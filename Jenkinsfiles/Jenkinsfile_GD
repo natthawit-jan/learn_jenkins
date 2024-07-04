@@ -1,33 +1,119 @@
 pipeline {
-    agent { 
-        node {
-            label 'docker-agent-alpine'
-            }
-      }
+    agent  { label 'docker-agent-alpine' }
+
+    parameters {
+        string(name: 'GDW_VERSION', defaultValue: 'GDW-27.0.0.0', description: 'Enter the GDW version name for example GDW-27.0.1.0 or GDW-25.0.0.0 GDW-23.0.0 (separated by spaces only)')
+        password(name: 'JIRA_TOKEN', description: 'Enter your Jira personal access token')
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '10'))
+    }
+
+    environment {
+        GIT_REPO = 'https://github.developer.allianz.io/gdw-core/gdw-utils.git'
+        GIT_BRANCH = 'release-note-generator-pat-ver'
+    }
+
     stages {
-        stage('Build') {
+        
+        stage('Pre-Cleanup') {
             steps {
-                echo "Building.."
-                sh '''
-                echo "doing build stuff.."
-                '''
+                cleanWs()
             }
         }
-        stage('Test') {
+        stage('Initialize') {
             steps {
-                echo "Testing.."
-                sh '''
-                echo "doing test stuff.."
-                '''
+                script {
+                    wrap([$class: 'BuildUser']) {
+                        env.RECIPIENT_EMAIL = env.BUILD_USER
+                    }
+                }
+                echo "Recipient Email: ${env.RECIPIENT_EMAIL}"
             }
         }
-        stage('Deliver') {
+        stage('Checkout') {
             steps {
-                echo 'Deliver....'
-                sh '''
-                echo "doing delivery stuff.."
-                '''
+                echo "Checking out the code from ${env.GIT_BRANCH} branch"
+                // checkout([$class: 'GitSCM', 
+                //     branches: [[name: env.GIT_BRANCH]], 
+                //     userRemoteConfigs: [[url: env.GIT_REPO, credentialsId: 'mult-aztu-git']]
+                // ])
+                sh "ls -l"
+                // sh "python3 --version"
+                echo "${env.RECIPIENT_EMAIL}"
             }
+        }
+
+        stage('Run Python Script') {
+            steps {
+                echo 'Installing the required Python packages...'
+                // sh 'pip3 install -r requirements.txt'
+                echo 'Running the rel_notes.py script...'
+                sh """
+                set +x # Disable printing of commands
+                echo ${params.GDW_VERSION}
+                echo ${params.JIRA_TOKEN}
+                set -x # Enable printing of commands
+                """
+
+                sh 'ls -l'
+            }
+        }
+
+        stage('Check Files') {
+            steps {
+                script {
+                    def htmlFiles = findFiles(glob: '**/*.html')
+                    def mdFiles = findFiles(glob: '**/*.md')
+                    
+                    // Filter out README.md from the list of mdFiles
+                    mdFiles = mdFiles.findAll { it.name != 'README.md' }
+
+                    if (htmlFiles.length == 0 && mdFiles.length == 0) {
+                        currentBuild.result = 'SUCCESS'
+                        // emailext(
+                        //     subject: "GDW Multistack CI Partially Successful Build: ${env.JOB_NAME} | No HTML and Markdown Files Generated",
+                        //     body: "The pipeline completed successfully but no HTML or Markdown files were generated. Please check the PAT token and/or GDW version and try again.\n Build Number: ${env.BUILD_NUMBER} <br>URL to the build: ${env.BUILD_URL}.<br>",
+                        //     from: 'jenkins-no-reply@allianz.com',
+                        //     to: "${env.RECIPIENT_EMAIL}",
+                        //     mimeType: 'text/html',
+                        //     replyTo: 'no-reply@allianz.com'
+                        // )
+                    } else {
+                        def filesToArchive = htmlFiles + mdFiles
+                        if (filesToArchive.size() > 0) {
+                            archiveArtifacts artifacts: filesToArchive.collect { it.path }.join(','), allowEmptyArchive: true
+                        }
+                        // emailext(
+                        //     subject: "GDW Multistack CI Successful Build: ${env.JOB_NAME}",
+                        //     body: "The pipeline completed successfully and the HTML and Markdown files are attached.",
+                        //     from: 'jenkins-no-reply@allianz.com',
+                        //     mimeType: 'text/html',
+                        //     replyTo: 'no-reply@allianz.com',
+                        //     attachmentsPattern: filesToArchive.collect { it.path }.join(','),
+                        //     to: "${env.RECIPIENT_EMAIL}"
+                        // )
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo "something wrong"
+            // emailext(
+            //     subject: "GDW Multistack CI Unstable Build: ${env.JOB_NAME}",
+            //     body: "Dear Colleagues,<br>\n<br><b>Release Note Generation <b><font color=\"red\">failed</font></b> - please check log file attached and fix the issue when possible.<br>Build Number: ${env.BUILD_NUMBER} <br>URL to the build: ${env.BUILD_URL}.<br>",
+            //     from: 'jenkins-no-reply@allianz.com',
+            //     mimeType: 'text/html',
+            //     replyTo: 'no-reply@allianz.com',
+            //     to: "${env.RECIPIENT_EMAIL}",
+            //     attachLog: true,
+            //     compressLog: true
+            // );
+           
         }
     }
 }
