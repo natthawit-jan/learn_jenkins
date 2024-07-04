@@ -52,8 +52,8 @@ pipeline {
                 echo 'Running the rel_notes.py script...'
                 sh """
                 set +x # Disable printing of commands
-                echo ${params.GDW_VERSION}
-                echo ${params.JIRA_TOKEN}
+                echo "${params.GDW_VERSION}"
+                echo "${params.JIRA_TOKEN}"
                 set -x
                 """
 
